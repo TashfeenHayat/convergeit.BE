@@ -7,6 +7,12 @@ const DepartmentEmail = require('../models/departmentEmailModel');
 const SMTP = require('../models/smptpModel');
 const sendMail = require('../utils/sendEmail');
 const jsforce = require('jsforce');
+const {
+    formatDuration,
+    formatChatTime,
+    formatLocation,
+    buildChatTranscriptHtml,
+} = require('../utils/chatEmailHelpers');
 
 
 // Create a new chat and send email
@@ -32,6 +38,10 @@ const createChat = async (req, res) => {
             leadSource,
             visitorJourney,
             chatInitiatedPage,
+            time,
+            chatDuration,
+            device,
+            visitorId,
         } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(websiteId) || !mongoose.Types.ObjectId.isValid(departmentId)) {
@@ -68,6 +78,10 @@ const createChat = async (req, res) => {
             leadSource,
             visitorJourney,
             chatInitiatedPage,
+            chatDuration,
+            device,
+            chatTime: time ? new Date(time) : undefined,
+            visitorId,
         });
 
 
@@ -77,114 +91,40 @@ const createChat = async (req, res) => {
 
 
 
-        const smtpConfig = website.smtp.smtpConfigs;
+        const smtpConfig = website?.smtp?.smtpConfigs;
 
-        const chatTranscriptHtml = chatTranscript?.split('\n').reduce((acc, line, index, array) => {
-          // Regex to identify lines that start with a timestamp
-          const datePattern = /\(\w{3}, \d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} \w{2}\)/;
-          const namePattern = /^[A-Za-z0-9]+:/; // Pattern to identify lines that start with a name followed by a colon
-          let name, message, date;
-      
-          // Check if the line matches the pattern for new messages with a timestamp or name
-          if (datePattern.test(line) || namePattern.test(line)) {
-              const parts = line.split(/: (.+)/); // Split the line at the first colon followed by a space
-              if (parts.length > 1 && datePattern.test(parts[1])) {
-                  const subParts = parts[1].split(') ');
-                  name = parts[0];
-                  date = subParts[0] + ')';
-                  message = subParts[1] || '';
-      
-                  // Handle case where the message is on the next line
-                  if (!message && array[index + 1] && !datePattern.test(array[index + 1]) && !namePattern.test(array[index + 1])) {
-                      message = array[index + 1].trim();
-                      array[index + 1] = ''; // Clear the next line as it's part of the current message
-                  }
-      
-                  acc.push({
-                      name: `${name} ${date}`,
-                      message: message.trim()
-                  });
-              } else {
-                  name = parts[0];
-                  message = parts[1] || '';
-      
-                  // Handle case where the message is on the next line
-                  if (!message && array[index + 1] && !datePattern.test(array[index + 1]) && !namePattern.test(array[index + 1])) {
-                      message = array[index + 1].trim();
-                      array[index + 1] = ''; // Clear the next line as it's part of the current message
-                  }
-      
-                  acc.push({
-                      name: name,
-                      message: message.trim()
-                  });
-              }
-          }
-          // If it's not a new message, it's part of the previous message
-          else if (acc.length > 0 && line.trim() !== '') {
-              acc[acc.length - 1].message += ' ' + line.trim();
-          }
-          // Handle the case where the first line doesn't fit the pattern
-          else if (acc.length === 0 && line.trim() !== '') {
-              acc.push({
-                  name: '',
-                  message: line.trim()
-              });
-          }
-      
-          return acc;
-      }, []).map(item => {
-          if (item.name === '' && item.message) {
-              const parts = item.message.split(/(?<=\))/);
-              if (parts.length > 1) {
-                  item.name = parts[0].trim();
-                  item.message = parts[1].trim();
-              }
-          }
-      
-// Remove the trailing colon from name if it exists
-const displayName = item.name.replace(/:$/, '');
+        const chatTranscriptHtml = buildChatTranscriptHtml(chatTranscript);
 
-return `<tr><td style="padding: 10px 0; border-bottom: 1px solid #fff; padding-right: 10px;"><strong>${displayName}:</strong></td><td style="padding: 10px 0; border-bottom: 1px solid #fff; line-height: 24px;">${item.message}</td></tr>`;
-}).join('');
-      
-      // Print the result to console for debugging purposes
-      console.log(chatTranscriptHtml);
-      
-      // Print the result to console for debugging purposes
-      console.log(chatTranscriptHtml);
-      
-      
         if (smtpConfig) {
             const mailOptions = {
                 from: department.emailFrom,
                 to: department.emailsTo.join(','),
                 cc: department.emailsCc ? department.emailsCc.join(',') : '',
                 bcc: department.emailsBcc ? department.emailsBcc.join(',') : '',
-
-
-                // subject: `New Chat Transcript from ${visitorName}`,
                 subject: department?.subjectLine,
-
-
-                
                 chatId: chat._id,
+                visitorName,
                 visitorEmail,
                 visitorPhone,
-                agentName,
-                country,
-                chatOrigin,
-                browser,
-                ipAddress,
-                referrerUrl,
-                websiteUrl,
-                chatTranscriptHtml,
                 company,
                 state,
+                country,
                 zipCode,
+                location: formatLocation({ state, country, zipCode }),
+                agentName,
+                websiteUrl,
+                createdAt: formatChatTime(time, chat.createdAt),
+                duration: formatDuration(chatDuration),
+                browser,
+                device,
+                visitorId,
+                ipAddress,
                 leadSource,
+                chatOrigin,
+                referrerUrl,
                 visitorJourney,
                 chatInitiatedPage,
+                chatTranscriptHtml,
             };
 
             // Don't block chat creation on SMTP delays/timeouts.

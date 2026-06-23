@@ -21,6 +21,10 @@ const chatSchema = new Schema({
     leadSource: { type: String },
     visitorJourney: { type: String },
     chatInitiatedPage: { type: String },
+    chatDuration: { type: Number },
+    device: { type: String },
+    chatTime: { type: Date },
+    visitorId: { type: String },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Chat', chatSchema);
