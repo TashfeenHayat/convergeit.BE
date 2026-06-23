@@ -1,25 +1,7 @@
-const nodemailer = require('nodemailer');
+const { parseEmails, getSendGridApiKey, sendViaSendGridApi } = require('./sendGridApi');
 
 const sendTestEmail = async (smtpConfig, from, to, cc, bcc) => {
-    const port = smtpConfig?.port;
-    // Auto-fix common misconfiguration: 587 uses STARTTLS (secure=false), 465 uses SMTPS (secure=true).
-    const effectiveSecure =
-        port === 465 ? true : port === 587 ? false : smtpConfig?.secure;
-    const requireTLS = port === 587;
-
-    const transporter = nodemailer.createTransport({
-        host: smtpConfig.host,
-        port: port,
-        secure: effectiveSecure,
-        requireTLS,
-        auth: {
-            user: smtpConfig.authUser, // SMTP username
-            pass: smtpConfig.authPass  // SMTP password
-        },
-        connectionTimeout: 30000, // ms
-        greetingTimeout: 30000, // ms
-        socketTimeout: 30000, // ms
-    });
+    const apiKey = getSendGridApiKey(smtpConfig);
 
     const htmlTemplate = `
    
@@ -329,17 +311,15 @@ const sendTestEmail = async (smtpConfig, from, to, cc, bcc) => {
    
     `;
 
-    const mailOptions = {
-        from: from,
-        sender: from, //To ensure correct configurations gets picked at the DNS Level
-        to: to.join(','),
-        cc: cc.join(','),
-        bcc: bcc.join(','),
+    await sendViaSendGridApi({
+        apiKey,
+        from,
+        to: parseEmails(to),
+        cc: parseEmails(cc),
+        bcc: parseEmails(bcc),
         subject: 'Test Email',
-        html: htmlTemplate
-    };
-
-    await transporter.sendMail(mailOptions);
+        html: htmlTemplate,
+    });
 };
 
 module.exports = sendTestEmail;

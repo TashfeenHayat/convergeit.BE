@@ -127,17 +127,15 @@ const createChat = async (req, res) => {
                 chatTranscriptHtml,
             };
 
-            // Don't block chat creation on SMTP delays/timeouts.
-            try {
-                await sendMail(smtpConfig, mailOptions);
-            } catch (mailErr) {
+            // Don't block chat creation on email delivery.
+            sendMail(smtpConfig, mailOptions).catch((mailErr) => {
                 console.error('[chatController] sendMail failed (continuing):', {
                     chatId: chat?._id,
                     code: mailErr?.code,
                     message: mailErr?.message,
                     command: mailErr?.command,
                 });
-            }
+            });
         } else {
             console.log('SMTP configuration not found for website.');
         }

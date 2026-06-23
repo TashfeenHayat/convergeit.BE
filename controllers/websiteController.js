@@ -90,7 +90,7 @@ const getWebsite = async (req, res) => {
             .populate('POCs', 'name email phone mobile designation')
             .populate({
                 path: 'smtp',
-                populate: { path: 'smtpConfigs', select: 'configName host port secure authUser' }
+                populate: { path: 'smtpConfigs', select: 'configName' }
             })
             .populate('departments');
 
@@ -118,7 +118,7 @@ const getAllWebsites = async (req, res) => {
             .limit(Number(limit))
             .populate('company', 'name address')
             .populate('POCs', 'name email phone mobile')
-            .populate('smtp', 'configName host port secure authUser')
+            .populate('smtp', 'configName')
             .populate('departments');
 
         res.status(200).json({

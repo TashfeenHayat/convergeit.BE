@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 const excel = require('exceljs');
-const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
+const { parseEmails, getSendGridApiKey, sendViaSendGridApi } = require('../utils/sendGridApi');
 const cron = require('node-cron');
 const Chat = require('../models/chatModel');
 const Website = require('../models/websiteModel');
@@ -39,25 +39,33 @@ const cancelCronJob = (reportId) => {
 };
 
 const sendMail = async (smtpConfig, mailOptions) => {
-    const port = smtpConfig?.port;
-    const effectiveSecure =
-        port === 465 ? true : port === 587 ? false : smtpConfig?.secure;
-    const requireTLS = port === 587;
-    const transporter = nodemailer.createTransport({
-        host: smtpConfig.host,
-        port: port,
-        secure: effectiveSecure,
-        requireTLS,
-        auth: {
-            user: smtpConfig.authUser,
-            pass: smtpConfig.authPass
-        },
-        connectionTimeout: 30000, // ms
-        greetingTimeout: 30000, // ms
-        socketTimeout: 30000, // ms
-    });
+    const apiKey = getSendGridApiKey(smtpConfig);
 
-    await transporter.sendMail(mailOptions);
+    const attachments = [];
+    if (mailOptions.attachments?.length) {
+        for (const att of mailOptions.attachments) {
+            const buf = fs.readFileSync(att.path);
+            attachments.push({
+                content: buf.toString('base64'),
+                filename: att.filename || path.basename(att.path),
+                type:
+                    att.contentType ||
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
+        }
+    }
+
+    await sendViaSendGridApi({
+        apiKey,
+        from: mailOptions.from,
+        to: parseEmails(mailOptions.to),
+        cc: parseEmails(mailOptions.cc),
+        bcc: parseEmails(mailOptions.bcc),
+        subject: mailOptions.subject,
+        text: mailOptions.text,
+        html: mailOptions.html,
+        attachments: attachments.length ? attachments : undefined,
+    });
 };
 
 const generateExcelReport = async (chats) => {
