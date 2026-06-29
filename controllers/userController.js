@@ -1,5 +1,6 @@
 const User = require("../models/userModel");
 const generteTokenAndSetCookie = require("../utils/helpers/generateTokenAndSetCookies");
+const { getClearAuthCookieOptions } = require("../utils/helpers/cookieOptions");
 const bCrypt = require("bcryptjs");
 const cookie = require ("cookie-parser");
 const validateResult = require("../utils/validators/validateResult");
@@ -48,12 +49,12 @@ const SignInUser = async (req, res) => {
         
     }
 
-    generteTokenAndSetCookie(user._id, res);
+    const token = generteTokenAndSetCookie(user._id, res);
         user.failedAttempts = 0; //refresh the failed attempts in case user provides the correct password
         await user.save();
 
         user.password = null;
-        res.status(200).json(user);
+        res.status(200).json({ ...user.toJSON(), token });
     } catch (error) {
         res.status(500).send(error.message);
         console.log("Error in login", error.message)
@@ -96,7 +97,7 @@ const createUser = async (req, res) => {
 
 const logoutUser = async (req, res) => {
     try {
-        res.cookie("jwt", "", {maxAge:1});
+        res.cookie("jwt", "", getClearAuthCookieOptions());
         return  res.status(200).json({message: "User logged out successfully"})
         
     } catch (error) {

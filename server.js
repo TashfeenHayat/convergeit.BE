@@ -24,20 +24,45 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT;
 
+if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+}
+
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET, // Corrected key here
 
   });
-  // Allow all origins and handle credentials
+const getAllowedOrigins = () => {
+  if (!process.env.CLIENT_URL) return [];
+  return process.env.CLIENT_URL.split(",").map((url) => url.trim()).filter(Boolean);
+};
+
 const corsOptions = {
   origin: function (origin, callback) {
-      callback(null, true);
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = getAllowedOrigins();
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    try {
+      const { hostname } = new URL(origin);
+      if (process.env.NODE_ENV === "production" && hostname.endsWith(".convergeit.app")) {
+        return callback(null, true);
+      }
+    } catch {
+      // ignore invalid origin URL
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
   },
-  credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+  credentials: true,
   methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
   allowedHeaders: "Content-Type,Authorization",
+  exposedHeaders: "Set-Cookie",
 };
 
 
